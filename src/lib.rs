@@ -23,12 +23,14 @@ pub trait PotatoToken {
     fn ft_metadata(&mut self) -> String;
 
     fn query_greeting_callback(&mut self) -> String;
+    fn ft_transfer_call(&mut self, amount: String, msg: String, receiver_id: String);
+    fn make_deposit_callback(&mut self) -> bool;
 }
 
 #[near_bindgen]
 impl Contract {
     #[init]
-    #[private] // Public - but only callable by env::current_account_id()
+
     pub fn new(potato_token: AccountId) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         Self {
@@ -63,5 +65,51 @@ impl Contract {
         };
 
         return ft_potato_metadata.to_string();
+    }
+
+    pub fn make_deposit_burrow(
+        &mut self,
+        amount: String,
+        receiver_id: AccountId,
+        msg: String,
+    ) -> Promise {
+        assert!(
+            env::prepaid_gas() >= Gas::from(20 * TGAS),
+            "Please attach at least 20 TGAS"
+        );
+
+        let promise = ext_ft::ft_transfer_call(
+            (&mut self.potato_token).to_string(),
+            amount,
+            msg,
+            receiver_id,
+            NO_DEPOSIT,
+            Gas::from(5 * TGAS),
+        );
+
+        // Create a callback change_greeting_callback
+        return promise.then(ext_ft::make_deposit_callback(
+            env::current_account_id(),
+            NO_DEPOSIT,
+            Gas::from(10 * TGAS),
+        ));
+    }
+
+    #[private] // Public - but only callable by env::current_account_id()
+    pub fn make_deposit_callback(&self) -> bool {
+        let deposit_burrow: String = match env::promise_result(0) {
+            PromiseResult::Successful(value) => str::from_utf8(&value).unwrap().to_string(),
+            _ => {
+                log!("There was an error contacting Hello NEAR");
+                return false;
+            }
+        };
+
+        return deposit_burrow.to_string() == "true".to_string();
+    }
+
+
+    pub fn hello (&mut self) -> String {
+        return "Hello world".to_string();
     }
 }
