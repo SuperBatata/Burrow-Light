@@ -3,16 +3,18 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::{
     env, ext_contract, log, near_bindgen, AccountId, Gas, PanicOnDefault, Promise, PromiseResult,
 };
-use std::str;
-
+use std::convert::{TryFrom, TryInto};
+use std::str::{self, FromStr};
 pub const TGAS: u64 = 1_000_000_000_000;
 pub const NO_DEPOSIT: u128 = 0;
 pub const XCC_SUCCESS: u64 = 1;
+pub const YOCTO_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract {
-    pub potato_token: AccountId,
+    pub burrow_contract: AccountId,
+    pub wrapper_contract: AccountId,
 }
 
 // cross call contract to get metadata from potato token
@@ -21,7 +23,6 @@ pub trait PotatoToken {
     #[payable]
 
     fn ft_metadata(&mut self) -> String;
-
     fn query_greeting_callback(&mut self) -> String;
     fn ft_transfer_call(&mut self, amount: String, msg: String, receiver_id: String);
     fn make_deposit_callback(&mut self) -> bool;
@@ -31,42 +32,15 @@ pub trait PotatoToken {
 impl Contract {
     #[init]
 
-    pub fn new(potato_token: AccountId) -> Self {
+    pub fn new(burrow_contract: AccountId, wrapper_contract: AccountId) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         Self {
-            potato_token: potato_token,
+            burrow_contract: burrow_contract,
+            wrapper_contract: wrapper_contract,
         }
     }
 
-    pub fn query_metadata(&self) -> Promise {
-        assert!(
-            env::prepaid_gas() >= Gas::from(20 * TGAS),
-            "Please attach at least 20 TGAS"
-        );
-        let promise =
-            ext_ft::ft_metadata(self.potato_token.clone(), NO_DEPOSIT, Gas::from(5 * TGAS));
-
-        return promise.then(ext_ft::query_greeting_callback(
-            env::current_account_id(),
-            NO_DEPOSIT,
-            Gas::from(5 * TGAS),
-        ));
-    }
-
-    #[private] // Public - but only callable by env::current_account_id()
-    pub fn query_greeting_callback(&self) -> String {
-        // Get response, return "" if failed
-        let ft_potato_metadata: String = match env::promise_result(0) {
-            PromiseResult::Successful(value) => str::from_utf8(&value).unwrap().to_string(),
-            _ => {
-                log!("There was an error contacting Hello NEAR");
-                return "".to_string();
-            }
-        };
-
-        return ft_potato_metadata.to_string();
-    }
-
+    #[payable]
     pub fn make_deposit_burrow(
         &mut self,
         amount: String,
@@ -78,21 +52,18 @@ impl Contract {
             "Please attach at least 20 TGAS"
         );
 
+        let account = "wrap.testnet";
+
         let promise = ext_ft::ft_transfer_call(
-            (&mut self.potato_token).to_string(),
             amount,
             msg,
-            receiver_id,
-            NO_DEPOSIT,
-            Gas::from(5 * TGAS),
+            receiver_id.to_string(),
+            AccountId::from_str(account).unwrap(),
+            1,
+            Gas(50000000000000),
         );
 
-        // Create a callback change_greeting_callback
-        return promise.then(ext_ft::make_deposit_callback(
-            env::current_account_id(),
-            NO_DEPOSIT,
-            Gas::from(10 * TGAS),
-        ));
+        return promise;
     }
 
     #[private] // Public - but only callable by env::current_account_id()
@@ -107,9 +78,11 @@ impl Contract {
 
         return deposit_burrow.to_string() == "true".to_string();
     }
-
-
-    pub fn hello (&mut self) -> String {
-        return "Hello world".to_string();
-    }
 }
+
+// amount,
+// msg,
+// receiver_id.to_string(),
+// self.wrapper_contract.clone(),
+// YOCTO_NEAR,
+// Gas::from(30 * TGAS),
