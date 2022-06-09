@@ -36,6 +36,7 @@ pub trait Collateral {
 }
 
 #[near_bindgen]
+
 impl Contract {
     #[init]
     pub fn new(burrow_contract: AccountId, wrapper_contract: AccountId) -> Self {
@@ -73,15 +74,16 @@ impl Contract {
     }
 
     #[payable]
+
     pub fn increase_colateral(&mut self, actions: Vec<String>) -> Promise {
         assert!(
             env::prepaid_gas() >= Gas::from(20 * TGAS),
             "Please attach at least 20 TGAS"
         );
-
+       
         let account = "contract.1638481328.burrow.testnet";
         let promise = ext_collateral::execute(
-            actions.to_vec(),
+            actions,
             AccountId::from_str(account).unwrap(),
             1,
             Gas(50000000000000),
@@ -102,4 +104,3 @@ impl Contract {
         return promise;
     }
 }
-
