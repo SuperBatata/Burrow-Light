@@ -1,11 +1,10 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::serde::Deserialize;
-use near_sdk::{
-    env, ext_contract, log, near_bindgen, serde, AccountId, Gas, PanicOnDefault, Promise,
-    PromiseResult,
-};
+
+use near_sdk::{env, ext_contract, near_bindgen, AccountId, Gas, PanicOnDefault, Promise};
+use serde_json::Value;
 
 use std::str::{self, FromStr};
+use std::vec;
 pub const TGAS: u64 = 1_000_000_000_000;
 pub const NO_DEPOSIT: u128 = 0;
 pub const XCC_SUCCESS: u64 = 1;
@@ -29,10 +28,9 @@ pub trait PotatoToken {
 }
 
 #[ext_contract(ext_collateral)]
-#[derive(Deserialize)]
-#[serde(crate = "near_sdk::serde")]
+
 pub trait Collateral {
-    fn execute(&mut self, actions: Vec<String>);
+    fn execute(&mut self, actions: Vec<Value>);
 }
 
 #[near_bindgen]
@@ -75,12 +73,16 @@ impl Contract {
 
     #[payable]
 
-    pub fn increase_colateral(&mut self, actions: Vec<String>) -> Promise {
+    pub fn increase_colateral(&mut self, actions: Vec<Value>) -> Promise {
         assert!(
             env::prepaid_gas() >= Gas::from(20 * TGAS),
             "Please attach at least 20 TGAS"
         );
-       
+
+        
+        
+
+
         let account = "contract.1638481328.burrow.testnet";
         let promise = ext_collateral::execute(
             actions,
